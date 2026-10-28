@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glow Scientific Calculator</title>
+  <style>
+    :root {
+      --bg: #f5efe6;
+      --panel: #fffaf3;
+      --screen: #f0e4d6;
+      --accent: #6f432e;
+      --accent-dark: #5b3525;
+      --text: #38271f;
+      --muted: #796557;
+      --key: #eadaca;
+      --key-hover: #ddc5ae;
+      --danger: #8a3d32;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; height: 100vh; height: 100dvh; overflow: hidden;
+      display: grid; place-items: center; padding: 12px;
+      color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 600;
+      background: radial-gradient(circle at 15% 15%, #fffaf3 0, transparent 38%),
+                  radial-gradient(circle at 90% 85%, #e7d3bf 0, transparent 32%), var(--bg);
+    }
+    .calculator {
+      width: min(100%, 460px); max-height: 100%; overflow: hidden; padding: clamp(12px, 2.4vh, 22px);
+      border: 1px solid rgba(255,255,255,.1); border-radius: 28px;
+      background: rgba(255, 250, 243, .98); box-shadow: 0 24px 70px rgba(0,0,0,.38);
+    }
+    .topline { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:clamp(8px, 1.6vh, 18px); color:var(--muted); font-size:.76rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    .topline .brand { display:flex; align-items:center; }
+    .history-toggle { min-height:34px; padding:6px 10px; border:1px solid rgba(255,255,255,.12); border-radius:10px; font-size:.75rem; letter-spacing:normal; text-transform:none; }
+    .screen { min-height:clamp(82px, 14vh, 125px); display:flex; flex-direction:column; justify-content:flex-end; align-items:flex-end; gap:10px; padding:16px; margin-bottom:12px; border-radius:18px; background:var(--screen); overflow:hidden; }
+    #history { width:100%; min-height:18px; color:var(--muted); font-size:.85rem; font-weight:700; text-align:right; overflow-wrap:anywhere; }
+    #display { width:100%; color:var(--text); font-size:clamp(1.8rem, 8vw, 2.55rem); font-weight:800; text-align:right; overflow-wrap:anywhere; }
+    .subrow { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:12px; color:var(--muted); font-size:.8rem; font-weight:700; }
+    .subrow button { min-height:auto; padding:5px 9px; border-radius:9px; font-size:.75rem; }
+    .keys { display:grid; grid-template-columns:repeat(5, 1fr); gap:clamp(5px, 1vh, 9px); }
+    button { min-height:clamp(36px, 6.2vh, 52px); border:0; border-radius:14px; background:var(--key); color:var(--text); font:inherit; font-size:1rem; cursor:pointer; transition:transform .12s ease, background .12s ease; }
+    button:hover { background:var(--key-hover); }
+    button:active { transform:scale(.96); }
+    button:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+    .utility { color:var(--accent); }
+    .operator { background:#e2cbb7; color:var(--accent); }
+    .operator:hover { background:#d4b79e; }
+    .clear { color:var(--danger); }
+    .equals { background:var(--accent); color:#fffaf3; font-weight:800; font-size:1.2rem; }
+    .equals:hover { background:#5b3525; color:#fffaf3; }
+    .wide { grid-column:span 2; }
+    .history-panel { position:fixed; z-index:20; top:0; right:0; width:min(350px, calc(100vw - 20px)); height:100vh; height:100dvh; padding:22px 18px; overflow:auto; border-left:1px solid rgba(91,53,37,.18); background:#fffaf3; box-shadow:-20px 0 55px rgba(0,0,0,.35); transform:translateX(105%); transition:transform .25s ease; }
+    .history-panel.open { transform:translateX(0); }
+    .history-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px; color:var(--muted); font-size:.85rem; font-weight:800; }
+    #historyList { display:flex; flex-direction:column; gap:8px; max-height:calc(100% - 65px); overflow:auto; }
+    .history-item { display:flex; justify-content:space-between; gap:12px; padding:8px 10px; border-radius:10px; background:rgba(111,67,46,.08); font-size:.8rem; }
+    .history-item span:last-child { color:var(--accent); text-align:right; overflow-wrap:anywhere; }
+    .history-panel button { min-height:34px; }
+    @media (max-height:650px) { .calculator { padding:10px; } .screen { min-height:66px; padding:10px; margin-bottom:8px; } .subrow { margin-bottom:8px; } button { min-height:32px; } }
+    @media (prefers-reduced-motion: reduce) { .history-panel { transition:none; } }
+    @media (max-width:430px) { body { padding:8px; } .calculator { padding:12px; border-radius:22px; } .keys { gap:6px; } button { border-radius:10px; font-size:.88rem; } }
+  </style>
+</head>
+<body>
+  <main class="calculator" aria-label="Glow scientific calculator">
+    <div class="topline"><span class="brand">Glow Calculator</span><button class="history-toggle" id="toggleHistory" type="button" aria-controls="historyPanel" aria-expanded="false">History ☰</button></div>
+    <section class="screen" aria-live="polite">
+      <div id="history"></div>
+      <div id="display">0</div>
+    </section>
+    <div class="subrow">
+      <span id="angleMode">Angle mode: DEG</span>
+      <button class="utility" id="toggleAngle" type="button">Switch to RAD</button>
+    </div>
+
+    <section class="keys" aria-label="Calculator buttons">
+      <button class="utility clear" data-action="clear">AC</button>
+      <button class="utility" data-action="backspace" title="Delete last character">DEL</button>
+      <button class="utility" data-action="sign">+/−</button>
+      <button class="utility" data-action="percent">%</button>
+      <button class="operator" data-operator="/">÷</button>
+
+      <button data-action="square">x²</button>
+      <button data-action="sqrt">√x</button>
+      <button data-action="reciprocal">1/x</button>
+      <button data-action="factorial">x!</button>
+      <button class="operator" data-operator="*">×</button>
+
+      <button data-action="sin">sin</button>
+      <button data-action="cos">cos</button>
+      <button data-action="tan">tan</button>
+      <button data-action="log">log</button>
+      <button class="operator" data-operator="-">−</button>
+
+      <button data-action="ln">ln</button>
+      <button data-action="pi">π</button>
+      <button data-action="e">e</button>
+      <button data-action="abs">|x|</button>
+      <button class="operator" data-operator="+">+</button>
+
+      <button data-number="7">7</button>
+      <button data-number="8">8</button>
+      <button data-number="9">9</button>
+      <button data-action="decimal">.</button>
+      <button data-action="equals" class="equals">=</button>
+
+      <button data-number="4">4</button>
+      <button data-number="5">5</button>
+      <button data-number="6">6</button>
+      <button data-action="exp">EXP</button>
+      <button data-action="clearEntry">CE</button>
+
+      <button data-number="1">1</button>
+      <button data-number="2">2</button>
+      <button data-number="3">3</button>
+      <button data-action="openParen">(</button>
+      <button data-action="closeParen">)</button>
+
+      <button data-number="0" class="wide">0</button>
+      <button data-action="ans">ANS</button>
+      <button data-action="mod">mod</button>
+      <button data-action="power">xʸ</button>
+    </section>
+
+    <aside class="history-panel" id="historyPanel" aria-label="Calculation history" aria-hidden="true">
+      <div class="history-head"><span>Recent calculations</span><div><button class="utility" id="clearHistory" type="button">Clear</button> <button class="utility" id="closeHistory" type="button" aria-label="Close history">✕</button></div></div>
+      <div id="historyList"><div class="history-item"><span>Your calculations will appear here</span><span>—</span></div></div>
+    </aside>
+  </main>
+
+  <script>
+    const display = document.querySelector("#display");
+    const historyText = document.querySelector("#history");
+    const keys = document.querySelector(".keys");
+    const historyList = document.querySelector("#historyList");
+    const angleModeLabel = document.querySelector("#angleMode");
+    const toggleAngle = document.querySelector("#toggleAngle");
+    const historyPanel = document.querySelector("#historyPanel");
+    const toggleHistory = document.querySelector("#toggleHistory");
+    const closeHistory = document.querySelector("#closeHistory");
+
+    function setHistoryOpen(open) {
+      historyPanel.classList.toggle("open", open);
+      historyPanel.setAttribute("aria-hidden", String(!open));
+      toggleHistory.setAttribute("aria-expanded", String(open));
+      if (open) closeHistory.focus();
+      else toggleHistory.focus();
+    }
+    toggleHistory.addEventListener("click", () => setHistoryOpen(!historyPanel.classList.contains("open")));
+    closeHistory.addEventListener("click", () => setHistoryOpen(false));
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && historyPanel.classList.contains("open")) {
+        event.stopPropagation();
+        setHistoryOpen(false);
+      }
+    }, true);
+
+    let current = "0";
+    let expression = "";
+    let lastAnswer = 0;
+    let angleMode = "DEG";
+    let shouldStartNewNumber = false;
+    let justEvaluated = false;
+    const recentCalculations = [];
+
+    const operators = ["+", "-", "*", "/", "^", "mod"];
+
+    function updateDisplay() {
+      display.textContent = current;
+    }
+
+    function formatResult(number) {
+      if (typeof number !== "number" || !Number.isFinite(number)) return "Error";
+      if (Math.abs(number) < 1e-12) number = 0;
+      return String(Number(number.toPrecision(12)));
+    }
+
+    function setError(message = "Invalid calculation") {
+      current = "Error";
+      historyText.textContent = message;
+      updateDisplay();
+      shouldStartNewNumber = true;
+    }
+
+    function resetIfNeeded() {
+      if (current === "Error" || justEvaluated) {
+        current = "0";
+        expression = "";
+        historyText.textContent = "";
+        justEvaluated = false;
+      }
+    }
+
+    function inputNumber(number) {
+      if (current === "Error" || shouldStartNewNumber || justEvaluated) {
+        current = number;
+        shouldStartNewNumber = false;
+        justEvaluated = false;
+      } else if (current === "0") {
+        current = number;
+      } else if (current.replace("-", "").length < 15) {
+        current += number;
+      }
+      updateDisplay();
+    }
+
+    function inputDecimal() {
+      if (current === "Error" || shouldStartNewNumber || justEvaluated) {
+        current = "0.";
+        shouldStartNewNumber = false;
+        justEvaluated = false;
+      } else if (!current.includes(".")) {
+        current += ".";
+      }
+      updateDisplay();
+    }
+
+    function addToExpression(value) {
+      if (current === "Error") return;
+      if (justEvaluated && !operators.includes(value)) expression = "";
+      expression += value;
+      historyText.textContent = expression;
+      shouldStartNewNumber = false;
+      justEvaluated = false;
+    }
+
+    function appendOperator(op) {
+      if (current === "Error") return;
+      if (!expression && !justEvaluated) expression = current;
+      if (expression && /[+\-*/^]$/.test(expression)) expression = expression.slice(0, -1);
+      const opText = op === "mod" ? " mod " : ` ${op === "*" ? "×" : op === "/" ? "÷" : op} `;
+      expression += opText;
+      historyText.textContent = expression;
+      current = "0";
+      shouldStartNewNumber = true;
+      justEvaluated = false;
+    }
+
+    function getCurrentNumber() {
+      const value = Number(current);
+      if (!Number.isFinite(value)) throw new Error("Enter a valid number");
+      return value;
+    }
+
+    function angleValue(value) {
+      return angleMode === "DEG" ? value * Math.PI / 180 : value;
+    }
+
+    function factorial(n) {
+      if (!Number.isInteger(n) || n < 0 || n > 170) throw new Error("Factorial needs a whole number from 0 to 170");
+      let result = 1;
+      for (let i = 2; i <= n; i++) result *= i;
+      return result;
+    }
+
+    function applyUnary(action) {
+      let value;
+      try {
+        value = getCurrentNumber();
+        let result;
+        let label;
+        switch (action) {
+          case "square": result = value ** 2; label = `(${value})²`; break;
+          case "sqrt":
+            if (value < 0) throw new Error("Square root needs a non-negative number");
+            result = Math.sqrt(value); label = `√(${value})`; break;
+          case "reciprocal":
+            if (value === 0) throw new Error("Cannot divide by zero");
+            result = 1 / value; label = `1/(${value})`; break;
+          case "factorial": result = factorial(value); label = `${value}!`; break;
+          case "sin": result = Math.sin(angleValue(value)); label = `sin(${value}°${angleMode === "RAD" ? " rad" : ""})`; break;
+          case "cos": result = Math.cos(angleValue(value)); label = `cos(${value}${angleMode === "DEG" ? "°" : " rad"})`; break;
+          case "tan":
+            if (Math.abs(Math.cos(angleValue(value))) < 1e-12) throw new Error("Tangent is undefined at this angle");
+            result = Math.tan(angleValue(value)); label = `tan(${value}${angleMode === "DEG" ? "°" : " rad"})`; break;
+          case "log":
+            if (value <= 0) throw new Error("log needs a positive number");
+            result = Math.log10(value); label = `log(${value})`; break;
+          case "ln":
+            if (value <= 0) throw new Error("ln needs a positive number");
+            result = Math.log(value); label = `ln(${value})`; break;
+          case "abs": result = Math.abs(value); label = `|${value}|`; break;
+          case "percent": result = value / 100; label = `${value}%`; break;
+          case "sign": result = -value; label = `−(${value})`; break;
+          case "pi": result = Math.PI; label = "π"; break;
+          case "e": result = Math.E; label = "e"; break;
+          case "exp": result = value * 10; label = `${value} × 10`; break;
+          case "ans": result = lastAnswer; label = "ANS"; break;
+          default: return;
+        }
+        if (!Number.isFinite(result)) throw new Error("Result is outside the supported range");
+        current = formatResult(result);
+        historyText.textContent = `${label} =`;
+        lastAnswer = result;
+        shouldStartNewNumber = true;
+        justEvaluated = true;
+        updateDisplay();
+        addHistory(label, current);
+      } catch (error) {
+        setError(error.message);
+      }
+    }
+
+    function insertConstant(name) {
+      const value = name === "pi" ? Math.PI : Math.E;
+      const literal = name;
+      if (current === "Error") clearAll();
+      if (justEvaluated) {
+        expression = "";
+        current = "0";
+        historyText.textContent = "";
+        justEvaluated = false;
+      }
+      if (!expression) {
+        if (current !== "0" && !shouldStartNewNumber) expression = `${current}*${literal}`;
+        else expression = literal;
+      } else if (/[+\-*/^]\s*$/.test(expression) || /mod\s*$/.test(expression)) {
+        expression += literal;
+      } else {
+        expression += `*${literal}`;
+      }
+      current = formatResult(value);
+      historyText.textContent = expression;
+      shouldStartNewNumber = true;
+      updateDisplay();
+    }
+
+    function clearAll() {
+      current = "0";
+      expression = "";
+      shouldStartNewNumber = false;
+      justEvaluated = false;
+      historyText.textContent = "";
+      updateDisplay();
+    }
+
+    function clearEntry() {
+      current = "0";
+      if (expression) expression = expression.replace(/(?:pi|e|\d*\.?\d+(?:e[+-]?\d+)?)$/i, "");
+      historyText.textContent = expression || "";
+      shouldStartNewNumber = false;
+      justEvaluated = false;
+      updateDisplay();
+    }
+
+    function backspace() {
+      if (current === "Error" || shouldStartNewNumber || justEvaluated) {
+        current = "0";
+        shouldStartNewNumber = false;
+        justEvaluated = false;
+      } else {
+        current = current.length > 1 ? current.slice(0, -1) : "0";
+        if (current === "-") current = "0";
+      }
+      updateDisplay();
+    }
+
+    function addHistory(calculation, result) {
+      recentCalculations.unshift({ calculation, result });
+      if (recentCalculations.length > 6) recentCalculations.pop();
+      renderHistory();
+    }
+
+    function renderHistory() {
+      historyList.innerHTML = "";
+      if (!recentCalculations.length) {
+        historyList.innerHTML = '<div class="history-item"><span>No calculations yet</span><span>—</span></div>';
+        return;
+      }
+      recentCalculations.forEach(item => {
+        const row = document.createElement("div");
+        row.className = "history-item";
+        const left = document.createElement("span");
+        const right = document.createElement("span");
+        left.textContent = item.calculation;
+        right.textContent = item.result;
+        row.append(left, right);
+        historyList.appendChild(row);
+      });
+    }
+
+    function tokenize(input) {
+      const normalized = input.replace(/×/g, "*").replace(/÷/g, "/").replace(/\s+/g, "");
+      const tokens = normalized.match(/\d*\.?\d+(?:e[+-]?\d+)?|pi|e|mod|[()+\-*/^]/gi);
+      if (!tokens || tokens.join("") !== normalized) throw new Error("Check the expression and try again");
+      return tokens;
+    }
+
+    function evaluateExpression(input) {
+      const tokens = tokenize(input);
+      let index = 0;
+      const peek = () => tokens[index];
+      const consume = () => tokens[index++];
+
+      function primary() {
+        const token = consume();
+        if (token === undefined) throw new Error("Incomplete expression");
+        if (token === "+") return unary();
+        if (token === "-") return -unary();
+        if (token === "(") {
+          const value = addSub();
+          if (consume() !== ")") throw new Error("Missing closing bracket");
+          return value;
+        }
+        if (token.toLowerCase() === "pi") return Math.PI;
+        if (token.toLowerCase() === "e") return Math.E;
+        const value = Number(token);
+        if (!Number.isFinite(value)) throw new Error("Invalid number");
+        return value;
+      }
+
+      function power() {
+        let left = primary();
+        if (peek() === "^") {
+          consume();
+          left = left ** unary();
+        }
+        return left;
+      }
+
+      function unary() { return power(); }
+
+      function mulDiv() {
+        let value = unary();
+        while (["*", "/", "mod"].includes(peek())) {
+          const op = consume();
+          const right = unary();
+          if ((op === "/" || op === "mod") && right === 0) throw new Error("Cannot divide or mod by zero");
+          if (op === "*") value *= right;
+          if (op === "/") value /= right;
+          if (op === "mod") value %= right;
+        }
+        return value;
+      }
+
+      function addSub() {
+        let value = mulDiv();
+        while (peek() === "+" || peek() === "-") {
+          const op = consume();
+          const right = mulDiv();
+          value = op === "+" ? value + right : value - right;
+        }
+        return value;
+      }
+
+      const result = addSub();
+      if (index < tokens.length) throw new Error("Check the expression and try again");
+      if (!Number.isFinite(result)) throw new Error("Result is outside the supported range");
+      return result;
+    }
+
+    function equals() {
+      let calculation = expression.trim();
+      if (!calculation) {
+        if (current !== "Error") return;
+        return;
+      }
+      calculation = calculation.replace(/[+\-*/^ ]+$/, "");
+      try {
+        const result = evaluateExpression(calculation);
+        current = formatResult(result);
+        historyText.textContent = `${calculation} =`;
+        lastAnswer = result;
+        expression = "";
+        shouldStartNewNumber = true;
+        justEvaluated = true;
+        updateDisplay();
+        addHistory(calculation, current);
+      } catch (error) {
+        setError(error.message);
+      }
+    }
+
+    function runAction(action) {
+      if (action === "clear") clearAll();
+      else if (action === "clearEntry") clearEntry();
+      else if (action === "backspace") backspace();
+      else if (action === "decimal") inputDecimal();
+      else if (action === "equals") equals();
+      else if (action === "sign") applyUnary("sign");
+      else if (action === "percent") applyUnary("percent");
+      else if (action === "pi" || action === "e") insertConstant(action);
+      else if (["square", "sqrt", "reciprocal", "factorial", "sin", "cos", "tan", "log", "ln", "abs", "exp", "ans"].includes(action)) applyUnary(action);
+      else if (action === "openParen") {
+        if (current === "Error") clearAll();
+        addToExpression("(");
+      } else if (action === "closeParen") addToExpression(")");
+      else if (action === "mod") appendOperator("mod");
+      else if (action === "power") appendOperator("^");
+    }
+
+    keys.addEventListener("click", event => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      if (button.dataset.number !== undefined) {
+        if (expression && shouldStartNewNumber) {
+          expression += button.dataset.number;
+          current = button.dataset.number;
+          shouldStartNewNumber = false;
+          historyText.textContent = expression;
+          updateDisplay();
+        } else {
+          inputNumber(button.dataset.number);
+          if (expression && !shouldStartNewNumber) {
+            // Keep the typed expression in sync with the visible input.
+            const parts = expression.split(/([+\-*/^()]| mod )/);
+            if (parts.length) {
+              const last = parts[parts.length - 1];
+              if (/^\d*\.?\d*$/.test(last)) {
+                parts[parts.length - 1] = current;
+                expression = parts.join("");
+                historyText.textContent = expression;
+              }
+            }
+          }
+        }
+      }
+      if (button.dataset.operator) appendOperator(button.dataset.operator);
+      if (button.dataset.action) runAction(button.dataset.action);
+    });
+
+    toggleAngle.addEventListener("click", () => {
+      angleMode = angleMode === "DEG" ? "RAD" : "DEG";
+      angleModeLabel.textContent = `Angle mode: ${angleMode}`;
+      toggleAngle.textContent = angleMode === "DEG" ? "Switch to RAD" : "Switch to DEG";
+    });
+
+    document.querySelector("#clearHistory").addEventListener("click", () => {
+      recentCalculations.length = 0;
+      renderHistory();
+    });
+
+    document.addEventListener("keydown", event => {
+      if (/^[0-9]$/.test(event.key)) {
+        const button = keys.querySelector(`[data-number="${event.key}"]`);
+        if (button) button.click();
+      } else if (event.key === ".") runAction("decimal");
+      else if (["+", "-", "*", "/"].includes(event.key)) appendOperator(event.key);
+      else if (event.key === "^") appendOperator("^");
+      else if (event.key === "Enter" || event.key === "=") {
+        event.preventDefault();
+        equals();
+      } else if (event.key === "Escape") clearAll();
+      else if (event.key === "Backspace") backspace();
+      else if (event.key === "(") runAction("openParen");
+      else if (event.key === ")") runAction("closeParen");
+      else if (event.key === "%") runAction("percent");
+    });
+  </script>
+</body>
+</html>
